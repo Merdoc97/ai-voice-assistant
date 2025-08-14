@@ -15,6 +15,10 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ua.ttsagent.factory.ButtonFactory;
+import ua.ttsagent.factory.DropDownFactory;
+
+import java.util.Collection;
+import java.util.List;
 
 
 @Slf4j
@@ -23,23 +27,17 @@ import ua.ttsagent.factory.ButtonFactory;
 public class MainController {
 
     public Pane createUI() {
-        ComboBox<String> comboBox = createDropDown();
+        ComboBox<String> inputs = DropDownFactory.createDropDown(List.of("OPTION1","OPTION2"));
+        ComboBox<String> language = DropDownFactory.createDropDown(List.of("RU","EN"));
         TextArea outputArea = createTextArea();
-        Button startButton = ButtonFactory.createButton("START", Color.RED, createStartEventHandler(comboBox, outputArea));
+        Button startButton = ButtonFactory.createButton("START", Color.RED, createStartEventHandler(inputs, outputArea));
         Button stopButton = ButtonFactory.createButton("STOP", Color.BLUE, setStopButtonHandler(outputArea));
 
-        HBox topRow = new HBox(10, comboBox, startButton, stopButton);
+        HBox topRow = new HBox(10, inputs,language, startButton, stopButton);
         VBox layout = new VBox(10, topRow, outputArea);
         layout.setPadding(new Insets(15));
 
         return layout;
-    }
-
-    private ComboBox<String> createDropDown() {
-        ComboBox<String> comboBox = new ComboBox<>();
-        comboBox.getItems().addAll("Option 1", "Option 2", "Option 3");
-        comboBox.setPromptText("drop down");
-        return comboBox;
     }
 
 
