@@ -22,11 +22,19 @@ class TTSServiceImpl implements TTSService {
     private final ChatModel chatModel;
 
     @Override
-    public String ttsRequest(File inputFile, String language, TextArea outputArea) {
+    public void ttsRequest(File inputFile, String language, TextArea outputArea) {
+        if (inputFile == null) {
+            outputArea.setText("File is null please try again later.");
+            return;
+        }
         log.info("TTS request for file {} in language {}", inputFile, language);
         var textFromAudio = recognizeSpeech(inputFile);
-        Platform.runLater(() -> outputArea.setText("The question is: " + textFromAudio));
-        return answerToQuestion(textFromAudio, language);
+        Platform.runLater(() -> outputArea.appendText("---------------------\r\n"));
+        Platform.runLater(() -> outputArea.appendText("The question is: " + textFromAudio+"\r\n"));
+        Platform.runLater(() -> outputArea.appendText("The answer is: \r\n"));
+        chatModel.stream(textFromAudio)
+                .doOnNext(text -> Platform.runLater(() -> outputArea.appendText(text)))
+                .then().block();
     }
 
     @SneakyThrows
@@ -37,10 +45,5 @@ class TTSServiceImpl implements TTSService {
         var result = transcriptionModel.call(prompt).getResult();
         log.info("Transcription result: {}", result.getOutput());
         return result.getOutput();
-    }
-
-    private String answerToQuestion(String question, String language) {
-        log.info("Answering to question: {} ", question, language);
-        return chatModel.call(question);
     }
 }

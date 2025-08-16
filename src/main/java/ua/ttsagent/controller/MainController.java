@@ -1,6 +1,5 @@
 package ua.ttsagent.controller;
 
-import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
@@ -22,7 +21,6 @@ import ua.ttsagent.factory.ButtonFactory;
 import ua.ttsagent.factory.DropDownFactory;
 import ua.ttsagent.factory.TextAreaFactory;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 
@@ -36,43 +34,54 @@ public class MainController {
 
     public Pane createUI() {
         ComboBox<String> inputs = DropDownFactory.createDropDown(InputAudioUtil.getInputNames());
-        ComboBox<String> language = DropDownFactory.createDropDown(List.of("RU", "EN"));
         TextArea outputArea = TextAreaFactory.createTextArea("Text to speech output");
-        Button startButton = ButtonFactory.createButton("START", Color.RED, createStartEventHandler(inputs, outputArea, language));
-        Button stopButton = ButtonFactory.createButton("STOP", Color.BLUE, setStopButtonHandler(outputArea));
+        Button startButton = ButtonFactory.createButton("START", Color.RED, null);
+        startButton.setOnAction(createStartEventHandler(inputs, outputArea, startButton));
+        Button stopButton = ButtonFactory.createButton("STOP", Color.BLUE, null);
+        stopButton.setOnAction(setStopButtonHandler(outputArea, startButton));
+        Button clearButton = ButtonFactory.createButton("CLEAR", Color.GRAY, clearButtonHandler(outputArea));
 
-        HBox topRow = new HBox(10, inputs, language, startButton, stopButton);
+        HBox topRow = new HBox(10, inputs, startButton, stopButton, clearButton);
         VBox layout = new VBox(10, topRow, outputArea);
         layout.setPadding(new Insets(15));
         return layout;
+    }
+
+    private EventHandler<ActionEvent> clearButtonHandler(TextArea outputArea) {
+        return e->{
+            outputArea.setText("");
+        };
     }
 
 
     @SneakyThrows
     private EventHandler<ActionEvent> createStartEventHandler(ComboBox<String> comboBox,
                                                               TextArea outputArea,
-                                                              ComboBox<String> language) {
-        log.info("Start event handler is activated");
-        Platform.runLater(()->outputArea.setText("processing..."));
+                                                              Button startButton) {
+
         return
                 e -> {
+                    startButton.setText("RECORDING...");
+                    outputArea.appendText("processing...\r\n");
                     String selected = comboBox.getValue();
-                    String languageValue = language.getValue();
                     if (selected != null) {
-                        CompletableFuture.supplyAsync(() -> voiceHandler.startHandleVoice(selected))
-                                .thenApply(file -> ttsService.ttsRequest(file,languageValue,outputArea))
-                                .thenAccept(res -> Platform.runLater(()->outputArea.setText(res.toString())))
-                                .join();
+                        CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(selected))
+                                .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS);
                     } else {
-                        outputArea.setText("Input device not selected");
+                        startButton.setText("START");
+                        outputArea.appendText("Input device not selected\r\n");
                     }
                 };
     }
 
     @SneakyThrows
-    private EventHandler<ActionEvent> setStopButtonHandler(TextArea outputArea) {
-
+    private EventHandler<ActionEvent> setStopButtonHandler(TextArea outputArea, Button startButton) {
         log.info("Stop event handler is activated");
-        return e -> outputArea.setText("processed file ");
+        return e -> {
+            startButton.setText("START");
+            CompletableFuture.supplyAsync(() -> voiceHandler.stopsHandleVoice(outputArea))
+                    .thenAccept(file -> ttsService.ttsRequest(file, null, outputArea))
+                    .join();
+        };
     }
 }

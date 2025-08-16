@@ -6,5 +6,5 @@ import java.io.File;
 
 public interface TTSService {
 
-    String ttsRequest(File inputFile, String language, TextArea outputArea);
+    void ttsRequest(File inputFile, String language, TextArea outputArea);
 }

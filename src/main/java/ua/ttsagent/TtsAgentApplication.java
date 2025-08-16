@@ -33,7 +33,7 @@ public class TtsAgentApplication extends Application {
     public void start(Stage primaryStage) {
         var controller = springContext.getBean(MainController.class);
         Scene scene = new Scene(controller.createUI(), 600, 200);
-        primaryStage.setTitle("DropDown UI");
+        primaryStage.setTitle("STT agent");
         primaryStage.setScene(scene);
         primaryStage.show();
     }

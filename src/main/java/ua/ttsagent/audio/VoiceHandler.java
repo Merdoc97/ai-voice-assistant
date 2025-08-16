@@ -1,9 +1,11 @@
 package ua.ttsagent.audio;
 
 import jakarta.validation.constraints.NotEmpty;
+import javafx.scene.control.TextArea;
 
 import java.io.File;
 
 public interface VoiceHandler {
-    File startHandleVoice(@NotEmpty String input);
+    void startHandleVoice(@NotEmpty String input);
+    File stopsHandleVoice(TextArea outputArea);
 }

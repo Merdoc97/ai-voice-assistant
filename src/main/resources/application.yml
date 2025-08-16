@@ -5,7 +5,7 @@ spring:
   ai:
     openai:
 
-      api-key: "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"
+      api-key: "insert your key"
       chat:
         options:
           stream-usage: true
