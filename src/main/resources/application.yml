@@ -1,1 +1,29 @@
-spring.application.name=tts-agent
+spring:
+  application:
+    name: tts-agent
+  web:
+  ai:
+    openai:
+
+      api-key: "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"
+      chat:
+        options:
+          stream-usage: true
+          model: gpt-4o-mini
+          max-tokens: 10000
+          temperature: 0.1
+      audio:
+        speech:
+          options:
+            model: "gpt-4o-mini-transcribe"
+
+audio:
+  format:
+    channels: 1
+    sample-size-bit: 16
+    sample-rate: 44100
+    signed: true
+    big-endian: false
+file:
+  output:
+    output-dir: /tmp/tts
