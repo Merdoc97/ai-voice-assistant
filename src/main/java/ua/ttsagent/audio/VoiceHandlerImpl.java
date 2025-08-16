@@ -16,7 +16,6 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
 import java.io.File;
 import java.io.IOException;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.UUID;
@@ -62,14 +61,13 @@ class VoiceHandlerImpl implements VoiceHandler {
             }
             resultFile.createNewFile();
             writer = new StreamingWavWriter(resultFile, 44100, 16, 1);
-            var timeout = ZonedDateTime.now().plus(3, java.time.temporal.ChronoUnit.SECONDS);
             voiceList.push(new Voice(resultFile, targetLine, inputMixer, writer));
             while (action != STOP) {
                 targetLine.read(buffer, 0, buffer.length);
                 writer.writeData(buffer);
             }
         } catch (IOException e) {
-            log.info("Stream writer is closed, file {} is deleted", resultFile.getName());
+            log.debug("IOException {}", e.getMessage(),e);
         } catch (Exception e) {
             log.error("Error creating wav file", e);
         }

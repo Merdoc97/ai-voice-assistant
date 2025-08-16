@@ -5,7 +5,7 @@ spring:
   ai:
     openai:
 
-      api-key: "insert your key"
+      api-key: "put"
       chat:
         options:
           stream-usage: true
@@ -16,6 +16,10 @@ spring:
         speech:
           options:
             model: "gpt-4o-mini-transcribe"
+  output:
+    ansi:
+      enabled: always
+
 
 audio:
   format:
