@@ -81,7 +81,7 @@ public class MainController {
             startButton.setText("START");
             CompletableFuture.supplyAsync(() -> voiceHandler.stopsHandleVoice(outputArea))
                     .thenAccept(file -> ttsService.ttsRequest(file, null, outputArea))
-                    .join();
+                    .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS);
         };
     }
 }

@@ -10,7 +10,7 @@ spring:
         options:
           stream-usage: true
           model: gpt-4o-mini
-          max-tokens: 10000
+          max-tokens: 20000
           temperature: 0.1
       audio:
         speech:
