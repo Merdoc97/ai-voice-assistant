@@ -65,7 +65,7 @@ public class MainController {
         transcribeOnly.getStyleClass().add("transcribe-only-toggle");
 
         ComboBox<String> intervalCombo = createIntervalCombo();
-        Label intervalLabel = new Label("transcribe interval");
+        Label intervalLabel = new Label("interval seconds");
         VBox intervalRow = new VBox(4, intervalLabel, intervalCombo);
         intervalRow.setAlignment(Pos.CENTER_LEFT);
         intervalRow.setVisible(false);
