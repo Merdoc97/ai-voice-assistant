@@ -35,7 +35,11 @@ class TTSServiceImpl implements TTSService {
         log.info("TTS request for file {} in language {}", inputFile, language);
         var textFromAudio = recognizeSpeech(inputFile);
         Platform.runLater(() -> outputArea.appendText("---------------------\r\n"));
-        Platform.runLater(() -> outputArea.appendText("The question is: " + textFromAudio + "\r\n"));
+        if (transcribeOnly) {
+            Platform.runLater(() -> outputArea.appendText(textFromAudio + "\r\n"));
+        } else {
+            Platform.runLater(() -> outputArea.appendText("The question is: " + textFromAudio + "\r\n"));
+        }
 
         if (transcribeOnly) {
             return;
