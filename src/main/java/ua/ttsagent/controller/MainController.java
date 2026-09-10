@@ -5,6 +5,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
@@ -122,6 +123,7 @@ public class MainController {
 
         VBox header = new VBox(4, titleRow);
         header.getStyleClass().add("header-block");
+        installWindowDragHandlers(stage, header, windowControls);
 
         VBox outputBlock = new VBox(outputArea);
         outputBlock.getStyleClass().add("output-block");
@@ -271,5 +273,43 @@ public class MainController {
             task.cancel(true);
             intervalTask = null;
         }
+    }
+
+    private void installWindowDragHandlers(Stage stage, Node dragArea, Node... excludedNodes) {
+        final double[] dragOffset = new double[2];
+
+        dragArea.setOnMousePressed(event -> {
+            if (isInsideExcludedNode(event.getTarget(), excludedNodes)) {
+                return;
+            }
+            dragOffset[0] = event.getSceneX();
+            dragOffset[1] = event.getSceneY();
+        });
+
+        dragArea.setOnMouseDragged(event -> {
+            if (isInsideExcludedNode(event.getTarget(), excludedNodes)) {
+                return;
+            }
+            if (!stage.isMaximized()) {
+                stage.setX(event.getScreenX() - dragOffset[0]);
+                stage.setY(event.getScreenY() - dragOffset[1]);
+            }
+        });
+    }
+
+    private boolean isInsideExcludedNode(Object target, Node... excludedNodes) {
+        if (!(target instanceof Node targetNode)) {
+            return false;
+        }
+        for (Node excludedNode : excludedNodes) {
+            Node current = targetNode;
+            while (current != null) {
+                if (current == excludedNode) {
+                    return true;
+                }
+                current = current.getParent();
+            }
+        }
+        return false;
     }
 }
