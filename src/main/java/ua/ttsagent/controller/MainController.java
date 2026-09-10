@@ -1,24 +1,23 @@
 package ua.ttsagent.controller;
 
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Tooltip;
-import javafx.scene.control.Separator;
-import javafx.scene.control.Label;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.Separator;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
-import javafx.application.Platform;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -30,26 +29,53 @@ import ua.ttsagent.factory.ButtonFactory;
 import ua.ttsagent.factory.DropDownFactory;
 import ua.ttsagent.factory.TextAreaFactory;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleConsumer;
-
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MainController {
 
+    private static final List<String> INTERVAL_VALUES = List.of("----", "5", "10", "15", "20", "25", "30", "35", "40", "45");
+
     private final VoiceHandler voiceHandler;
     private final TTSService ttsService;
     private final List<Region> waveBars = new ArrayList<>();
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread thread = new Thread(r, "transcribe-interval");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private volatile ScheduledFuture<?> intervalTask;
+    private volatile boolean intervalModeActive;
 
     public Pane createUI(Stage stage) {
         ComboBox<String> inputs = DropDownFactory.createDropDown(InputAudioUtil.getInputNames());
         TextArea outputArea = TextAreaFactory.createTextArea("Your transcript and AI response will appear here");
+
         CheckBox transcribeOnly = new CheckBox("transcribe only");
         transcribeOnly.getStyleClass().add("transcribe-only-toggle");
+
+        ComboBox<String> intervalCombo = createIntervalCombo();
+        Label intervalLabel = new Label("transcribe interval");
+        VBox intervalRow = new VBox(4, intervalLabel, intervalCombo);
+        intervalRow.setAlignment(Pos.CENTER_LEFT);
+        intervalRow.setVisible(false);
+        intervalRow.setManaged(false);
+
+        transcribeOnly.selectedProperty().addListener((obs, oldValue, selected) -> {
+            intervalRow.setVisible(selected);
+            intervalRow.setManaged(selected);
+        });
+
         Label title = new Label("Voice AI Assistant");
         title.getStyleClass().add("app-title");
         Label subtitle = new Label("Record from a selected input device, transcribe speech, and get an AI response.");
@@ -76,18 +102,19 @@ public class MainController {
         HBox titleRow = new HBox(12);
         VBox titleBlock = new VBox(4, title, subtitle);
         HBox spacer = new HBox();
-        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
         titleRow.getChildren().addAll(titleBlock, spacer, windowControls);
         titleRow.setAlignment(Pos.CENTER_LEFT);
         titleRow.getStyleClass().add("title-row");
 
         Button startButton = ButtonFactory.createButton("START", "primary", null);
-        startButton.setOnAction(createStartEventHandler(inputs, outputArea, startButton));
+        startButton.setOnAction(createStartEventHandler(inputs, outputArea, startButton, transcribeOnly, intervalCombo));
         Button stopButton = ButtonFactory.createButton("STOP", "secondary", null);
         stopButton.setOnAction(setStopButtonHandler(outputArea, startButton, transcribeOnly));
         Button clearButton = ButtonFactory.createButton("CLEAR", "ghost", clearButtonHandler(outputArea));
 
-        HBox controls = new HBox(10, inputs, transcribeOnly, startButton, stopButton, clearButton);
+        VBox checkboxBlock = new VBox(6, transcribeOnly, intervalRow);
+        HBox controls = new HBox(10, inputs, checkboxBlock, startButton, stopButton, clearButton);
         controls.setAlignment(Pos.CENTER_LEFT);
         controls.getStyleClass().add("controls-row");
 
@@ -106,6 +133,16 @@ public class MainController {
         layout.getStyleClass().add("main-root");
         VBox.setVgrow(outputBlock, Priority.ALWAYS);
         return layout;
+    }
+
+    private ComboBox<String> createIntervalCombo() {
+        ComboBox<String> comboBox = new ComboBox<>();
+        comboBox.getItems().addAll(INTERVAL_VALUES);
+        comboBox.setValue("----");
+        comboBox.setPromptText("transcribe interval");
+        comboBox.setPrefWidth(150);
+        comboBox.getStyleClass().add("interval-selector");
+        return comboBox;
     }
 
     private HBox createWaveMeter() {
@@ -155,35 +192,39 @@ public class MainController {
     }
 
     private EventHandler<ActionEvent> clearButtonHandler(TextArea outputArea) {
-        return e->{
-            outputArea.setText("");
-        };
+        return e -> outputArea.setText("");
     }
-
 
     @SneakyThrows
     private EventHandler<ActionEvent> createStartEventHandler(ComboBox<String> comboBox,
                                                               TextArea outputArea,
-                                                              Button startButton) {
+                                                              Button startButton,
+                                                              CheckBox transcribeOnly,
+                                                              ComboBox<String> intervalCombo) {
+        return e -> {
+            startButton.setText("RECORDING...");
+            if (!outputArea.getText().isBlank()) {
+                outputArea.appendText("\r\n");
+            }
+            outputArea.appendText("Processing...\r\n");
 
-        return
-                e -> {
-                    startButton.setText("RECORDING...");
-                    if (!outputArea.getText().isBlank()) {
-                        outputArea.appendText("\r\n");
-                    }
-                    outputArea.appendText("Processing...\r\n");
-                    String selected = comboBox.getValue();
-                    if (selected != null) {
-                        DoubleConsumer levelListener = level -> Platform.runLater(() -> updateWaveMeter(level));
-                        CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(selected, outputArea, levelListener))
-                                .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS);
-                    } else {
-                        startButton.setText("START");
-                        outputArea.appendText("Input device not selected.\r\n");
-                        resetWaveMeter();
-                    }
-                };
+            String selectedDevice = comboBox.getValue();
+            if (selectedDevice == null) {
+                startButton.setText("START");
+                outputArea.appendText("Input device not selected.\r\n");
+                resetWaveMeter();
+                return;
+            }
+
+            DoubleConsumer levelListener = level -> Platform.runLater(() -> updateWaveMeter(level));
+            if (transcribeOnly.isSelected() && !"----".equals(intervalCombo.getValue())) {
+                startIntervalMode(selectedDevice, outputArea, levelListener, Integer.parseInt(intervalCombo.getValue()));
+            } else {
+                cancelIntervalMode();
+                CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(selectedDevice, outputArea, levelListener))
+                        .orTimeout(30, TimeUnit.SECONDS);
+            }
+        };
     }
 
     @SneakyThrows
@@ -192,9 +233,43 @@ public class MainController {
         return e -> {
             startButton.setText("START");
             resetWaveMeter();
+            cancelIntervalMode();
             CompletableFuture.supplyAsync(() -> voiceHandler.stopsHandleVoice(outputArea))
                     .thenAccept(file -> ttsService.ttsRequest(file, null, outputArea, transcribeOnly.isSelected()))
-                    .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS);
+                    .orTimeout(30, TimeUnit.SECONDS);
         };
+    }
+
+    private void startIntervalMode(String deviceName, TextArea outputArea, DoubleConsumer levelListener, int intervalSeconds) {
+        cancelIntervalMode();
+        intervalModeActive = true;
+        CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(deviceName, outputArea, levelListener))
+                .orTimeout(30, TimeUnit.SECONDS);
+        intervalTask = scheduler.scheduleAtFixedRate(() -> {
+            if (!intervalModeActive) {
+                return;
+            }
+
+            CompletableFuture.supplyAsync(() -> voiceHandler.stopsHandleVoice(outputArea))
+                    .thenAccept(file -> {
+                        if (file != null) {
+                            ttsService.ttsRequest(file, null, outputArea, true);
+                        }
+                        if (intervalModeActive) {
+                            CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(deviceName, outputArea, levelListener))
+                                    .orTimeout(30, TimeUnit.SECONDS);
+                        }
+                    })
+                    .orTimeout(30, TimeUnit.SECONDS);
+        }, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
+    }
+
+    private void cancelIntervalMode() {
+        intervalModeActive = false;
+        ScheduledFuture<?> task = intervalTask;
+        if (task != null) {
+            task.cancel(true);
+            intervalTask = null;
+        }
     }
 }
