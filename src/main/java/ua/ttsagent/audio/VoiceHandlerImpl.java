@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.UUID;
+import java.util.function.DoubleConsumer;
 
 import static ua.ttsagent.audio.HandlerAction.START;
 import static ua.ttsagent.audio.HandlerAction.STOP;
@@ -36,7 +37,7 @@ class VoiceHandlerImpl implements VoiceHandler {
 
     @SneakyThrows
     @Override
-    public void startHandleVoice(@NotEmpty String input, TextArea outputArea) {
+    public void startHandleVoice(@NotEmpty String input, TextArea outputArea, DoubleConsumer levelListener) {
         var audioFormat = audioFormatConfig.getAudioFormat();
         var inputInfo = Arrays.stream(AudioSystem.getMixerInfo())
                                 .filter(info -> info.getName().equalsIgnoreCase(input.toLowerCase()))
@@ -63,9 +64,13 @@ class VoiceHandlerImpl implements VoiceHandler {
             writer = new StreamingWavWriter(resultFile, 44100, 16, 1);
             voiceList.push(new Voice(resultFile, targetLine, inputMixer, writer));
             while (action != STOP) {
-                targetLine.read(buffer, 0, buffer.length);
-                writer.writeData(buffer);
+                int read = targetLine.read(buffer, 0, buffer.length);
+                if (read > 0) {
+                    writer.writeData(buffer);
+                    updateLevel(buffer, read, levelListener);
+                }
             }
+            publishSilent(levelListener);
         } catch (IOException e) {
             log.debug("IOException {}", e.getMessage(), e);
         } catch (Exception e) {
@@ -105,5 +110,28 @@ class VoiceHandlerImpl implements VoiceHandler {
 
     record Voice(File resultFile, TargetDataLine targetDataLine,
                  Mixer inputMixer, StreamingWavWriter writer) {
+    }
+
+    private void updateLevel(byte[] buffer, int read, DoubleConsumer levelListener) {
+        if (levelListener == null || read <= 0) {
+            return;
+        }
+        long sum = 0;
+        for (int i = 0; i + 1 < read; i += 2) {
+            int sample = (buffer[i] & 0xff) | (buffer[i + 1] << 8);
+            if (sample > 32767) {
+                sample -= 65536;
+            }
+            sum += (long) sample * sample;
+        }
+        double rms = Math.sqrt(sum / (double) Math.max(1, read / 2));
+        double normalized = Math.min(1.0, rms / 12000.0);
+        levelListener.accept(normalized);
+    }
+
+    private void publishSilent(DoubleConsumer levelListener) {
+        if (levelListener != null) {
+            levelListener.accept(0.0);
+        }
     }
 }
