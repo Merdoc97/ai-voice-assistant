@@ -5,6 +5,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -19,6 +20,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.scene.input.MouseEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +59,8 @@ public class MainController {
 
     private volatile ScheduledFuture<?> intervalTask;
     private volatile boolean intervalModeActive;
+
+    private static final double RESIZE_BORDER = 8.0;
 
     public Pane createUI(Stage stage) {
         ComboBox<String> inputs = DropDownFactory.createDropDown(InputAudioUtil.getInputNames());
@@ -134,6 +138,7 @@ public class MainController {
         layout.setPadding(new Insets(22));
         layout.getStyleClass().add("main-root");
         VBox.setVgrow(outputBlock, Priority.ALWAYS);
+        installResizeHandlers(stage, layout);
         return layout;
     }
 
@@ -311,5 +316,76 @@ public class MainController {
             }
         }
         return false;
+    }
+
+    private void installResizeHandlers(Stage stage, Region root) {
+        root.setOnMouseMoved(event -> root.setCursor(getResizeCursor(event, stage)));
+        root.setOnMouseDragged(event -> resizeStage(event, stage));
+        root.setOnMousePressed(event -> {
+            if (getResizeCursor(event, stage) != Cursor.DEFAULT) {
+                dragOffset[0] = event.getScreenX();
+                dragOffset[1] = event.getScreenY();
+                dragBounds[0] = stage.getX();
+                dragBounds[1] = stage.getY();
+                dragBounds[2] = stage.getWidth();
+                dragBounds[3] = stage.getHeight();
+            }
+        });
+    }
+
+    private final double[] dragOffset = new double[2];
+    private final double[] dragBounds = new double[4];
+
+    private Cursor getResizeCursor(MouseEvent event, Stage stage) {
+        boolean left = event.getX() < RESIZE_BORDER;
+        boolean right = event.getX() > stage.getWidth() - RESIZE_BORDER;
+        boolean top = event.getY() < RESIZE_BORDER;
+        boolean bottom = event.getY() > stage.getHeight() - RESIZE_BORDER;
+
+        if (left && top) return Cursor.NW_RESIZE;
+        if (right && top) return Cursor.NE_RESIZE;
+        if (left && bottom) return Cursor.SW_RESIZE;
+        if (right && bottom) return Cursor.SE_RESIZE;
+        if (left) return Cursor.W_RESIZE;
+        if (right) return Cursor.E_RESIZE;
+        if (top) return Cursor.N_RESIZE;
+        if (bottom) return Cursor.S_RESIZE;
+        return Cursor.DEFAULT;
+    }
+
+    private void resizeStage(MouseEvent event, Stage stage) {
+        Cursor cursor = getResizeCursor(event, stage);
+        if (cursor == Cursor.DEFAULT) {
+            return;
+        }
+
+        double minWidth = Math.max(stage.getMinWidth(), 640);
+        double minHeight = Math.max(stage.getMinHeight(), 480);
+
+        double screenX = event.getScreenX();
+        double screenY = event.getScreenY();
+        double x = dragBounds[0];
+        double y = dragBounds[1];
+        double width = dragBounds[2];
+        double height = dragBounds[3];
+
+        if (cursor == Cursor.E_RESIZE || cursor == Cursor.NE_RESIZE || cursor == Cursor.SE_RESIZE) {
+            stage.setWidth(Math.max(minWidth, screenX - x));
+        }
+        if (cursor == Cursor.S_RESIZE || cursor == Cursor.SE_RESIZE || cursor == Cursor.SW_RESIZE) {
+            stage.setHeight(Math.max(minHeight, screenY - y));
+        }
+        if (cursor == Cursor.W_RESIZE || cursor == Cursor.NW_RESIZE || cursor == Cursor.SW_RESIZE) {
+            double newWidth = Math.max(minWidth, width - (screenX - dragOffset[0]));
+            double newX = x + (width - newWidth);
+            stage.setX(newX);
+            stage.setWidth(newWidth);
+        }
+        if (cursor == Cursor.N_RESIZE || cursor == Cursor.NE_RESIZE || cursor == Cursor.NW_RESIZE) {
+            double newHeight = Math.max(minHeight, height - (screenY - dragOffset[1]));
+            double newY = y + (height - newHeight);
+            stage.setY(newY);
+            stage.setHeight(newHeight);
+        }
     }
 }
