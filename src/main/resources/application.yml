@@ -5,12 +5,12 @@ spring:
   ai:
     openai:
 
-      api-key: "put"
+      api-key: "put.api.key"
       chat:
         options:
           stream-usage: true
           model: gpt-4o-mini
-          max-tokens: 20000
+          max-tokens: 10000
           temperature: 0.1
       audio:
         speech:
@@ -25,7 +25,7 @@ audio:
   format:
     channels: 1
     sample-size-bit: 16
-    sample-rate: 44100
+    sample-rate: 24000
     signed: true
     big-endian: false
 file:
