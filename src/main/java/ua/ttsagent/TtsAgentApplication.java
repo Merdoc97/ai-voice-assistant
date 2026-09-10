@@ -34,7 +34,7 @@ public class TtsAgentApplication extends Application {
     @Override
     public void start(Stage primaryStage) {
         var controller = springContext.getBean(MainController.class);
-        Scene scene = new Scene(controller.createUI(primaryStage), 640, 480);
+        Scene scene = new Scene(controller.createUI(primaryStage), 1024, 600);
         scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
         scene.setFill(Color.TRANSPARENT);
         primaryStage.setTitle("Voice AI Assistant");

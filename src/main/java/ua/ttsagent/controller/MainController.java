@@ -61,6 +61,7 @@ public class MainController {
     private volatile boolean intervalModeActive;
 
     private static final double RESIZE_BORDER = 8.0;
+    private Cursor activeResizeCursor = Cursor.DEFAULT;
 
     public Pane createUI(Stage stage) {
         ComboBox<String> inputs = DropDownFactory.createDropDown(InputAudioUtil.getInputNames());
@@ -319,10 +320,17 @@ public class MainController {
     }
 
     private void installResizeHandlers(Stage stage, Region root) {
-        root.setOnMouseMoved(event -> root.setCursor(getResizeCursor(event, stage)));
-        root.setOnMouseDragged(event -> resizeStage(event, stage));
+        root.setOnMouseMoved(event -> {
+            if (!stage.isMaximized() && activeResizeCursor == Cursor.DEFAULT) {
+                root.setCursor(getResizeCursor(event, stage));
+            }
+        });
         root.setOnMousePressed(event -> {
-            if (getResizeCursor(event, stage) != Cursor.DEFAULT) {
+            if (stage.isMaximized()) {
+                return;
+            }
+            activeResizeCursor = getResizeCursor(event, stage);
+            if (activeResizeCursor != Cursor.DEFAULT) {
                 dragOffset[0] = event.getScreenX();
                 dragOffset[1] = event.getScreenY();
                 dragBounds[0] = stage.getX();
@@ -330,6 +338,11 @@ public class MainController {
                 dragBounds[2] = stage.getWidth();
                 dragBounds[3] = stage.getHeight();
             }
+        });
+        root.setOnMouseDragged(event -> resizeStage(event, stage));
+        root.setOnMouseReleased(event -> {
+            activeResizeCursor = Cursor.DEFAULT;
+            root.setCursor(Cursor.DEFAULT);
         });
     }
 
@@ -354,13 +367,13 @@ public class MainController {
     }
 
     private void resizeStage(MouseEvent event, Stage stage) {
-        Cursor cursor = getResizeCursor(event, stage);
+        Cursor cursor = activeResizeCursor;
         if (cursor == Cursor.DEFAULT) {
             return;
         }
 
-        double minWidth = Math.max(stage.getMinWidth(), 640);
-        double minHeight = Math.max(stage.getMinHeight(), 480);
+        double minWidth = Math.max(stage.getMinWidth(), 800);
+        double minHeight = Math.max(stage.getMinHeight(), 600);
 
         double screenX = event.getScreenX();
         double screenY = event.getScreenY();
