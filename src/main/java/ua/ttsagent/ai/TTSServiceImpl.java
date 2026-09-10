@@ -27,16 +27,21 @@ class TTSServiceImpl implements TTSService {
     @Value("${ai.promtText:\"<question>\"}")
     private String promptText;
     @Override
-    public void ttsRequest(File inputFile, String language, TextArea outputArea) {
+    public void ttsRequest(File inputFile, String language, TextArea outputArea, boolean transcribeOnly) {
         if (inputFile == null) {
             outputArea.setText("File is null please try again later.");
             return;
         }
         log.info("TTS request for file {} in language {}", inputFile, language);
         var textFromAudio = recognizeSpeech(inputFile);
-        log.info("Prompt text is: {}",promptText);
         Platform.runLater(() -> outputArea.appendText("---------------------\r\n"));
-        Platform.runLater(() -> outputArea.appendText("The question is: " + textFromAudio+"\r\n"));
+        Platform.runLater(() -> outputArea.appendText("The question is: " + textFromAudio + "\r\n"));
+
+        if (transcribeOnly) {
+            return;
+        }
+
+        log.info("Prompt text is: {}",promptText);
         Platform.runLater(() -> outputArea.appendText("The answer is: \r\n"));
         var template = PromptTemplate.builder()
                 .renderer(StTemplateRenderer.builder()

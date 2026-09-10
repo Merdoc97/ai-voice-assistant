@@ -8,6 +8,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.HBox;
@@ -47,6 +48,8 @@ public class MainController {
     public Pane createUI(Stage stage) {
         ComboBox<String> inputs = DropDownFactory.createDropDown(InputAudioUtil.getInputNames());
         TextArea outputArea = TextAreaFactory.createTextArea("Your transcript and AI response will appear here");
+        CheckBox transcribeOnly = new CheckBox("transcribe only");
+        transcribeOnly.getStyleClass().add("transcribe-only-toggle");
         Label title = new Label("Voice AI Assistant");
         title.getStyleClass().add("app-title");
         Label subtitle = new Label("Record from a selected input device, transcribe speech, and get an AI response.");
@@ -81,10 +84,10 @@ public class MainController {
         Button startButton = ButtonFactory.createButton("START", "primary", null);
         startButton.setOnAction(createStartEventHandler(inputs, outputArea, startButton));
         Button stopButton = ButtonFactory.createButton("STOP", "secondary", null);
-        stopButton.setOnAction(setStopButtonHandler(outputArea, startButton));
+        stopButton.setOnAction(setStopButtonHandler(outputArea, startButton, transcribeOnly));
         Button clearButton = ButtonFactory.createButton("CLEAR", "ghost", clearButtonHandler(outputArea));
 
-        HBox controls = new HBox(10, inputs, startButton, stopButton, clearButton);
+        HBox controls = new HBox(10, inputs, transcribeOnly, startButton, stopButton, clearButton);
         controls.setAlignment(Pos.CENTER_LEFT);
         controls.getStyleClass().add("controls-row");
 
@@ -184,13 +187,13 @@ public class MainController {
     }
 
     @SneakyThrows
-    private EventHandler<ActionEvent> setStopButtonHandler(TextArea outputArea, Button startButton) {
+    private EventHandler<ActionEvent> setStopButtonHandler(TextArea outputArea, Button startButton, CheckBox transcribeOnly) {
         log.info("Stop event handler is activated");
         return e -> {
             startButton.setText("START");
             resetWaveMeter();
             CompletableFuture.supplyAsync(() -> voiceHandler.stopsHandleVoice(outputArea))
-                    .thenAccept(file -> ttsService.ttsRequest(file, null, outputArea))
+                    .thenAccept(file -> ttsService.ttsRequest(file, null, outputArea, transcribeOnly.isSelected()))
                     .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS);
         };
     }
