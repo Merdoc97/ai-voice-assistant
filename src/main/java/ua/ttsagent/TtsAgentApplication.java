@@ -3,7 +3,9 @@ package ua.ttsagent;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.stage.StageStyle;
 import javafx.stage.Stage;
+import javafx.scene.paint.Color;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -32,9 +34,14 @@ public class TtsAgentApplication extends Application {
     @Override
     public void start(Stage primaryStage) {
         var controller = springContext.getBean(MainController.class);
-        Scene scene = new Scene(controller.createUI(), 600, 200);
-        primaryStage.setTitle("STT agent");
+        Scene scene = new Scene(controller.createUI(primaryStage), 980, 640);
+        scene.getStylesheets().add(getClass().getResource("/styles/app.css").toExternalForm());
+        scene.setFill(Color.TRANSPARENT);
+        primaryStage.setTitle("Voice AI Assistant");
+        primaryStage.initStyle(StageStyle.TRANSPARENT);
         primaryStage.setScene(scene);
+        primaryStage.setMinWidth(860);
+        primaryStage.setMinHeight(560);
         primaryStage.show();
     }
 

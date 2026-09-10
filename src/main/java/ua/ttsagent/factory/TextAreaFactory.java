@@ -11,7 +11,8 @@ public class TextAreaFactory {
         TextArea outputArea = new TextArea();
         outputArea.setEditable(false);
         outputArea.setPromptText(text);
-        outputArea.setPrefHeight(100);
+        outputArea.getStyleClass().add("output-area");
+        outputArea.setPrefHeight(320);
         VBox.setVgrow(outputArea, Priority.ALWAYS);
         outputArea.setWrapText(true);
         return outputArea;

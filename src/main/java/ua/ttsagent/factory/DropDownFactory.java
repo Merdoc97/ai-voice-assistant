@@ -11,6 +11,8 @@ public class DropDownFactory {
     public ComboBox createDropDown(Collection<String> collection) {
         ComboBox<String> comboBox = new ComboBox<>();
         comboBox.getItems().addAll(collection);
+        comboBox.getStyleClass().add("device-selector");
+        comboBox.setPrefWidth(320);
         comboBox.setPromptText(collection.stream().findFirst().orElseThrow(() -> new RuntimeException("Can't create dropdown collection should not be empty")));
         return comboBox;
     }

@@ -36,12 +36,12 @@ class VoiceHandlerImpl implements VoiceHandler {
 
     @SneakyThrows
     @Override
-    public void startHandleVoice(@NotEmpty String input) {
+    public void startHandleVoice(@NotEmpty String input, TextArea outputArea) {
         var audioFormat = audioFormatConfig.getAudioFormat();
         var inputInfo = Arrays.stream(AudioSystem.getMixerInfo())
-                .filter(info -> info.getName().equalsIgnoreCase(input.toLowerCase()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Device " + input + " not found"));
+                                .filter(info -> info.getName().equalsIgnoreCase(input.toLowerCase()))
+                                .findFirst()
+                                .orElseThrow(() -> new RuntimeException("Device " + input + " not found"));
 
         DataLine.Info targetInfo = new DataLine.Info(TargetDataLine.class, audioFormat);
         var inputMixer = AudioSystem.getMixer(inputInfo);
@@ -67,7 +67,7 @@ class VoiceHandlerImpl implements VoiceHandler {
                 writer.writeData(buffer);
             }
         } catch (IOException e) {
-            log.debug("IOException {}", e.getMessage(),e);
+            log.debug("IOException {}", e.getMessage(), e);
         } catch (Exception e) {
             log.error("Error creating wav file", e);
         }
