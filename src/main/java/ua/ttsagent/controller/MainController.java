@@ -55,7 +55,11 @@ public class MainController {
         closeButton.getStyleClass().add("close-control");
         Tooltip.install(closeButton, new Tooltip("Close"));
 
-        HBox windowControls = new HBox(8, minimizeButton, closeButton);
+        Button maximizeButton = ButtonFactory.createButton("▢", "window-control", e -> stage.setMaximized(!stage.isMaximized()));
+        maximizeButton.getStyleClass().add("maximize-control");
+        Tooltip.install(maximizeButton, new Tooltip("Maximize / Restore"));
+
+        HBox windowControls = new HBox(8, minimizeButton, maximizeButton, closeButton);
         windowControls.setAlignment(Pos.CENTER_RIGHT);
         windowControls.getStyleClass().add("window-controls");
 

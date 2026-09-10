@@ -95,6 +95,14 @@
     -fx-text-fill: #334155;
 }
 
+.action-button.maximize-control {
+    -fx-text-fill: #334155;
+}
+
+.action-button.maximize-control:hover {
+    -fx-background-color: rgba(59, 130, 246, 0.16);
+}
+
 .action-button.primary {
     -fx-background-color: linear-gradient(to bottom, #ff5f57, #e5483d);
 }
