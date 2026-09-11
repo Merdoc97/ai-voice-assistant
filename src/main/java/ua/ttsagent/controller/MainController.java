@@ -19,6 +19,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.scene.input.MouseEvent;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,10 @@ import ua.ttsagent.factory.TextAreaFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -118,6 +123,7 @@ public class MainController {
         Button stopButton = ButtonFactory.createButton("STOP", "secondary", null);
         stopButton.setOnAction(setStopButtonHandler(outputArea, startButton, transcribeOnly));
         Button clearButton = ButtonFactory.createButton("CLEAR", "ghost", clearButtonHandler(outputArea));
+        Button saveButton = ButtonFactory.createButton("SAVE", "ghost", createSaveButtonHandler(stage, outputArea));
 
         VBox checkboxBlock = new VBox(6, transcribeOnly, intervalRow);
         HBox controls = new HBox(10, inputs, checkboxBlock, startButton, stopButton, clearButton);
@@ -125,6 +131,9 @@ public class MainController {
         controls.getStyleClass().add("controls-row");
 
         HBox waveMeter = createWaveMeter();
+        HBox footer = new HBox(saveButton);
+        footer.setAlignment(Pos.CENTER_RIGHT);
+        footer.getStyleClass().add("footer-row");
 
         VBox header = new VBox(4, titleRow);
         header.getStyleClass().add("header-block");
@@ -135,7 +144,7 @@ public class MainController {
         VBox.setVgrow(outputBlock, Priority.ALWAYS);
         outputBlock.setMinHeight(0);
 
-        VBox layout = new VBox(18, header, separator, controls, waveMeter, outputBlock);
+        VBox layout = new VBox(18, header, separator, controls, waveMeter, outputBlock, footer);
         layout.setPadding(new Insets(22));
         layout.getStyleClass().add("main-root");
         VBox.setVgrow(outputBlock, Priority.ALWAYS);
@@ -201,6 +210,30 @@ public class MainController {
 
     private EventHandler<ActionEvent> clearButtonHandler(TextArea outputArea) {
         return e -> outputArea.setText("");
+    }
+
+    private EventHandler<ActionEvent> createSaveButtonHandler(Stage stage, TextArea outputArea) {
+        return e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Save output");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Text files", "*.txt"),
+                    new FileChooser.ExtensionFilter("All files", "*.*")
+            );
+            fileChooser.setInitialFileName("tts-output.txt");
+
+            File targetFile = fileChooser.showSaveDialog(stage);
+            if (targetFile == null) {
+                return;
+            }
+
+            try {
+                Files.writeString(targetFile.toPath(), outputArea.getText(), StandardCharsets.UTF_8);
+            } catch (IOException ex) {
+                log.error("Failed to save output to {}", targetFile, ex);
+                outputArea.appendText("\r\nFailed to save output file.\r\n");
+            }
+        };
     }
 
     @SneakyThrows
