@@ -16,6 +16,7 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.UUID;
@@ -33,6 +34,7 @@ class VoiceHandlerImpl implements VoiceHandler {
     private final FileOutputConfig fileOutputConfig;
     private volatile HandlerAction action = STOP;
     private LinkedList<Voice> voiceList = new LinkedList<>();
+    private final Object voiceLock = new Object();
 
 
     @SneakyThrows
@@ -62,11 +64,15 @@ class VoiceHandlerImpl implements VoiceHandler {
             }
             resultFile.createNewFile();
             writer = new StreamingWavWriter(resultFile, 44100, 16, 1);
-            voiceList.push(new Voice(resultFile, targetLine, inputMixer, writer));
+            synchronized (voiceLock) {
+                voiceList.push(new Voice(resultFile, targetLine, inputMixer, writer));
+            }
             while (action != STOP) {
                 int read = targetLine.read(buffer, 0, buffer.length);
                 if (read > 0) {
-                    writer.writeData(buffer);
+                    synchronized (voiceLock) {
+                        writer.writeData(buffer);
+                    }
                     updateLevel(buffer, read, levelListener);
                 }
             }
@@ -78,34 +84,92 @@ class VoiceHandlerImpl implements VoiceHandler {
         }
     }
 
+    @Override
+    public File snapshotHandleVoice(TextArea outputArea) {
+        synchronized (voiceLock) {
+            Voice voice = voiceList.peek();
+            if (voice == null) {
+                return null;
+            }
+
+            try {
+                File sourceFile = voice.resultFile();
+                if (!sourceFile.exists() || sourceFile.length() <= 44) {
+                    return null;
+                }
+
+                File snapshotFile = new File(fileOutputConfig.getOutputDir().toString() + "/" + UUID.randomUUID() + "-snapshot.wav");
+                copyWaveSnapshot(sourceFile, snapshotFile);
+                snapshotFile.deleteOnExit();
+                return snapshotFile;
+            } catch (Exception e) {
+                outputArea.setText("Error something wrong please try again later.");
+                log.error("Error creating wav snapshot", e);
+                return null;
+            }
+        }
+    }
+
 
     @Override
     public File stopsHandleVoice(TextArea outputArea) {
-        action = STOP;
-        Voice voice = voiceList.poll();
-        voiceList.clear();
-        if (voice != null) {
+        synchronized (voiceLock) {
+            action = STOP;
+            Voice voice = voiceList.poll();
+            voiceList.clear();
+            if (voice != null) {
 
-            var resultFile = voice.resultFile();
-            try {
-                var writer = voice.writer();
-                var targetDataLine = voice.targetDataLine();
-                var inputMixer = voice.inputMixer();
-                if (writer != null) {
-                    writer.close();
-                    targetDataLine.close();
-                    inputMixer.close();
-                    resultFile.deleteOnExit();
-                    log.info("Wav writer is closed, file {} is deleted", resultFile.getName());
+                var resultFile = voice.resultFile();
+                try {
+                    var writer = voice.writer();
+                    var targetDataLine = voice.targetDataLine();
+                    var inputMixer = voice.inputMixer();
+                    if (writer != null) {
+                        writer.close();
+                        targetDataLine.close();
+                        inputMixer.close();
+                        resultFile.deleteOnExit();
+                        log.info("Wav writer is closed, file {} is deleted", resultFile.getName());
+                    }
+                } catch (Exception e) {
+                    outputArea.setText("Error something wrong please try again later.");
+                    log.error("Error creating wav file", e);
                 }
-            } catch (Exception e) {
-                outputArea.setText("Error something wrong please try again later.");
-                log.error("Error creating wav file", e);
+
+                return resultFile;
+            }
+            return null;
+        }
+    }
+
+    private void copyWaveSnapshot(File sourceFile, File snapshotFile) throws IOException {
+        try (RandomAccessFile source = new RandomAccessFile(sourceFile, "r");
+             RandomAccessFile target = new RandomAccessFile(snapshotFile, "rw")) {
+            long length = source.length();
+            if (length <= 44) {
+                return;
             }
 
-            return resultFile;
+            byte[] data = new byte[(int) length];
+            source.seek(0);
+            source.readFully(data);
+            target.setLength(0);
+            target.write(data);
+            int dataSize = (int) (length - 44);
+            target.seek(4);
+            target.write(intToLE(36 + dataSize));
+            target.seek(40);
+            target.write(intToLE(dataSize));
         }
-        return null;
+    }
+
+    private static byte[] intToLE(int value) {
+        return new byte[] {
+                (byte)(value),
+                (byte)(value >> 8),
+                (byte)(value >> 16),
+                (byte)(value >> 24)
+        };
     }
 
     record Voice(File resultFile, TargetDataLine targetDataLine,

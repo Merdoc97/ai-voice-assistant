@@ -8,5 +8,6 @@ import java.util.function.DoubleConsumer;
 
 public interface VoiceHandler {
     void startHandleVoice(@NotEmpty String input, TextArea outputArea, DoubleConsumer levelListener);
+    File snapshotHandleVoice(TextArea outputArea);
     File stopsHandleVoice(TextArea outputArea);
 }

@@ -291,14 +291,10 @@ public class MainController {
                 return;
             }
 
-            CompletableFuture.supplyAsync(() -> voiceHandler.stopsHandleVoice(outputArea))
+            CompletableFuture.supplyAsync(() -> voiceHandler.snapshotHandleVoice(outputArea))
                     .thenAccept(file -> {
                         if (file != null) {
                             ttsService.ttsRequest(file, null, outputArea, true);
-                        }
-                        if (intervalModeActive) {
-                            CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(deviceName, outputArea, levelListener))
-                                    .orTimeout(30, TimeUnit.SECONDS);
                         }
                     })
                     .orTimeout(30, TimeUnit.SECONDS);
