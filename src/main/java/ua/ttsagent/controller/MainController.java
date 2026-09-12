@@ -56,13 +56,14 @@ public class MainController {
     private final VoiceHandler voiceHandler;
     private final TTSService ttsService;
     private final List<Region> waveBars = new ArrayList<>();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2, r -> {
         Thread thread = new Thread(r, "transcribe-interval");
         thread.setDaemon(true);
         return thread;
     });
 
     private volatile ScheduledFuture<?> intervalTask;
+    private volatile ScheduledFuture<?> storeTask;
     private volatile boolean intervalModeActive;
 
     private static final double RESIZE_BORDER = 8.0;
@@ -76,15 +77,23 @@ public class MainController {
         transcribeOnly.getStyleClass().add("transcribe-only-toggle");
 
         ComboBox<String> intervalCombo = createIntervalCombo();
+        ComboBox<String> storeIntervalCombo = createIntervalCombo();
         Label intervalLabel = new Label("interval seconds");
         VBox intervalRow = new VBox(4, intervalLabel, intervalCombo);
         intervalRow.setAlignment(Pos.CENTER_LEFT);
+        Label storeIntervalLabel = new Label("store interval");
+        VBox storeIntervalRow = new VBox(4, storeIntervalLabel, storeIntervalCombo);
+        storeIntervalRow.setAlignment(Pos.CENTER_LEFT);
         intervalRow.setVisible(false);
         intervalRow.setManaged(false);
+        storeIntervalRow.setVisible(false);
+        storeIntervalRow.setManaged(false);
 
         transcribeOnly.selectedProperty().addListener((obs, oldValue, selected) -> {
             intervalRow.setVisible(selected);
             intervalRow.setManaged(selected);
+            storeIntervalRow.setVisible(selected);
+            storeIntervalRow.setManaged(selected);
         });
 
         Label title = new Label("Voice AI Assistant");
@@ -119,13 +128,13 @@ public class MainController {
         titleRow.getStyleClass().add("title-row");
 
         Button startButton = ButtonFactory.createButton("START", "primary", null);
-        startButton.setOnAction(createStartEventHandler(inputs, outputArea, startButton, transcribeOnly, intervalCombo));
+        startButton.setOnAction(createStartEventHandler(inputs, outputArea, startButton, transcribeOnly, intervalCombo, storeIntervalCombo));
         Button stopButton = ButtonFactory.createButton("STOP", "secondary", null);
         stopButton.setOnAction(setStopButtonHandler(outputArea, startButton, transcribeOnly));
         Button clearButton = ButtonFactory.createButton("CLEAR", "ghost", clearButtonHandler(outputArea));
         Button saveButton = ButtonFactory.createButton("SAVE", "ghost", createSaveButtonHandler(stage, outputArea));
 
-        VBox checkboxBlock = new VBox(6, transcribeOnly, intervalRow);
+        VBox checkboxBlock = new VBox(6, transcribeOnly, intervalRow, storeIntervalRow);
         HBox controls = new HBox(10, inputs, checkboxBlock, startButton, stopButton, clearButton);
         controls.setAlignment(Pos.CENTER_LEFT);
         controls.getStyleClass().add("controls-row");
@@ -241,7 +250,8 @@ public class MainController {
                                                               TextArea outputArea,
                                                               Button startButton,
                                                               CheckBox transcribeOnly,
-                                                              ComboBox<String> intervalCombo) {
+                                                              ComboBox<String> intervalCombo,
+                                                              ComboBox<String> storeIntervalCombo) {
         return e -> {
             startButton.setText("RECORDING...");
             if (!outputArea.getText().isBlank()) {
@@ -259,7 +269,9 @@ public class MainController {
 
             DoubleConsumer levelListener = level -> Platform.runLater(() -> updateWaveMeter(level));
             if (transcribeOnly.isSelected() && !"----".equals(intervalCombo.getValue())) {
-                startIntervalMode(selectedDevice, outputArea, levelListener, Integer.parseInt(intervalCombo.getValue()));
+                startIntervalMode(selectedDevice, outputArea, levelListener,
+                        Integer.parseInt(intervalCombo.getValue()),
+                        parseIntervalSeconds(storeIntervalCombo.getValue()));
             } else {
                 cancelIntervalMode();
                 CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(selectedDevice, outputArea, levelListener))
@@ -281,7 +293,8 @@ public class MainController {
         };
     }
 
-    private void startIntervalMode(String deviceName, TextArea outputArea, DoubleConsumer levelListener, int intervalSeconds) {
+    private void startIntervalMode(String deviceName, TextArea outputArea, DoubleConsumer levelListener,
+                                   int intervalSeconds, int storeIntervalSeconds) {
         cancelIntervalMode();
         intervalModeActive = true;
         CompletableFuture.runAsync(() -> voiceHandler.startHandleVoice(deviceName, outputArea, levelListener))
@@ -299,6 +312,16 @@ public class MainController {
                     })
                     .orTimeout(30, TimeUnit.SECONDS);
         }, intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
+
+        if (storeIntervalSeconds > 0) {
+            storeTask = scheduler.scheduleAtFixedRate(() -> {
+                if (!intervalModeActive) {
+                    return;
+                }
+                CompletableFuture.runAsync(() -> voiceHandler.rolloverHandleVoice(outputArea))
+                        .orTimeout(30, TimeUnit.SECONDS);
+            }, storeIntervalSeconds, storeIntervalSeconds, TimeUnit.SECONDS);
+        }
     }
 
     private void cancelIntervalMode() {
@@ -308,6 +331,18 @@ public class MainController {
             task.cancel(true);
             intervalTask = null;
         }
+        ScheduledFuture<?> store = storeTask;
+        if (store != null) {
+            store.cancel(true);
+            storeTask = null;
+        }
+    }
+
+    private int parseIntervalSeconds(String value) {
+        if (value == null || "----".equals(value)) {
+            return -1;
+        }
+        return Integer.parseInt(value);
     }
 
     private void installWindowDragHandlers(Stage stage, Node dragArea, Node... excludedNodes) {
